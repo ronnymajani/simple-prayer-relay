@@ -14,7 +14,6 @@ import {
   newPair,
   setToken,
   today,
-  type Device,
 } from './helpers';
 import { sweep } from '../src/db';
 

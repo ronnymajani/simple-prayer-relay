@@ -1,6 +1,12 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import worker from '../src/index';
 
+/**
+ * A request as the edge delivers one. A plain `new Request()` is typed with the *init* shape of
+ * `cf`, which the worker's `fetch` will not accept; this is the cast the Workers test docs use.
+ */
+const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
+
 export interface Device {
   deviceId: string;
   secret: string;
@@ -9,7 +15,9 @@ export interface Device {
 /** One request through the real worker, exactly as Cloudflare would deliver it. */
 export async function call(
   path: string,
-  init: RequestInit & { as?: Device; ip?: string } = {},
+  // `cf` is omitted deliberately: with it in the init the request is typed as an *outgoing* one,
+  // which the worker's fetch handler will not take.
+  init: Omit<RequestInit, 'cf'> & { as?: Device; ip?: string } = {},
 ): Promise<Response> {
   const { as, ip, ...rest } = init;
   const headers = new Headers(rest.headers);
@@ -21,7 +29,7 @@ export async function call(
 
   const ctx = createExecutionContext();
   const response = await worker.fetch!(
-    new Request(`https://relay.simpleprayer.app${path}`, { ...rest, headers }),
+    new IncomingRequest(`https://relay.simpleprayer.app${path}`, { ...rest, headers }),
     env,
     ctx,
   );

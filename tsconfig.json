@@ -4,7 +4,7 @@
     "lib": ["es2022"],
     "module": "es2022",
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/workers-types", "vitest/globals"],
+    "types": ["@cloudflare/workers-types", "vitest/globals", "@cloudflare/vitest-plugin/types"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,

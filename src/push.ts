@@ -43,8 +43,9 @@ const BUDDY_CHANNEL = 'buddies';
 const BUDDY_CATEGORY = 'buddy';
 
 /**
- * A flag is worth a day at most: after that the app will have collected it from the inbox anyway,
- * and a push arriving later would announce a prayer from yesterday.
+ * Six hours. A push that has not been delivered by then has been overtaken: the app pulls the inbox
+ * whenever it is opened, so the flag arrives that way instead — and a notification surfacing much
+ * later would announce a prayer from another part of the day.
  */
 const PUSH_TTL_SECONDS = 6 * 60 * 60;
 

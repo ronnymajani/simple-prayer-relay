@@ -1,10 +1,9 @@
-import path from 'node:path';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
 import { defineConfig } from 'vitest/config';
 
 // The tests run against the real schema, read from the same migrations directory that is deployed.
 // A test that passes against a hand-written copy of the schema proves nothing about production.
-const migrations = await readD1Migrations(path.join(import.meta.dirname, 'migrations'));
+const migrations = await readD1Migrations('migrations');
 
 export default defineConfig({
   plugins: [
