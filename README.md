@@ -78,8 +78,9 @@ and contains no link, so that one phone cannot use another's notification tray a
 - Bodies are capped at 2 KB and validated against a schema before any database work. Every statement
   is parameterised. Inbox writes upsert on `(device, pair, day, prayer)`, so a replayed request lands
   on the row that is already there instead of multiplying.
-- HTTPS only, HSTS preloaded, `Cache-Control: no-store`, no cookies, and no origin is allowed to call
-  it from a browser. There is deliberately **no certificate pinning**: Cloudflare rotates its edge
+- HTTPS only, HSTS preloaded, `Cache-Control: no-store`, no cookies, and no CORS header at all —
+  a missing header is what denies every origin, where `Access-Control-Allow-Origin: null` would
+  have granted access to any null-origin context, sandboxed iframes included. There is deliberately **no certificate pinning**: Cloudflare rotates its edge
   certificates, and a stale pin would silently break the feature for everyone.
 
 If the relay is unreachable, the app shows blank buddy rows and tries again next time it is opened.
@@ -89,7 +90,7 @@ Nothing else in the app touches the network, so nothing else is affected.
 
 ```sh
 bun install
-bun run test         # 49 tests against the real schema, no network
+bun run test         # 52 tests against the real schema, no network
 bun run typecheck
 
 cp .dev.vars.example .dev.vars   # then fill it in

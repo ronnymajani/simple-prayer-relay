@@ -53,8 +53,10 @@ const SECURITY_HEADERS: Record<string, string> = {
   'referrer-policy': 'no-referrer',
   'x-content-type-options': 'nosniff',
   'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
-  // There is no browser client and never will be, so no origin is allowed to call this from a page.
-  'access-control-allow-origin': 'null',
+  // No CORS header at all. There is no browser client and never will be, and a *missing* header is
+  // what actually denies every origin — `Access-Control-Allow-Origin: null` reads as permission to
+  // any null-origin context, which includes sandboxed iframes and `file://` pages. Sending nothing
+  // is both simpler and stricter.
 };
 
 function json(data: unknown, status = 200): Response {

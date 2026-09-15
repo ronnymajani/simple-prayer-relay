@@ -440,3 +440,30 @@ describe('what the database can be made to hold', () => {
     void b;
   });
 });
+
+describe('the shape of every response', () => {
+  it('grants no origin access to a browser, by sending no CORS header at all', async () => {
+    // A *missing* header denies every origin. `Access-Control-Allow-Origin: null` would not: it
+    // reads as permission to any null-origin context, which includes sandboxed iframes.
+    const response = await call('/health');
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('is never cached, and never sniffed', async () => {
+    const response = await call('/health');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('strict-transport-security')).toContain('max-age=31536000');
+  });
+
+  it('says nothing in the body of a refusal', async () => {
+    const device = await newDevice();
+    for (const response of [
+      await call('/inbox'),
+      await call('/pair/' + 'a'.repeat(32), { method: 'DELETE', as: device }),
+      await call('/nope', { as: device }),
+    ]) {
+      expect(await response.text()).toBe('');
+    }
+  });
+});
