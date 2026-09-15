@@ -1,0 +1,6 @@
+# Local development only. Real values live in `wrangler secret put`, never in this repo.
+# TOKEN_KEY and IP_SECRET must be different from each other and from production.
+TOKEN_KEY="base64-encoded 32 random bytes: openssl rand -base64 32"
+IP_SECRET="any long random string: openssl rand -hex 32"
+EXPO_ACCESS_TOKEN="an Expo access token with push permission"
+SENTRY_DSN=""
