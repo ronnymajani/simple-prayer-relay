@@ -149,7 +149,6 @@ async function deleteDeviceRoute(env: Env, caller: Caller): Promise<Response> {
 // ---------------------------------------------------------------------------------------------
 
 async function postInvite(env: Env, caller: Caller, now: number): Promise<Response> {
-  if (!(await burstOk(env.BURST_LIMITER, caller.deviceId))) return empty(429);
   if (!(await bumpQuota(env.DB, `inv:${caller.deviceId}`, 20, 24 * 60 * 60 * 1000, now))) {
     return empty(429);
   }
@@ -226,8 +225,6 @@ async function deletePairRoute(env: Env, caller: Caller, pairId: string): Promis
  * inbox still has the flag when the app next opens.
  */
 async function postSend(request: Request, env: Env, caller: Caller, now: number): Promise<Response> {
-  if (!(await burstOk(env.BURST_LIMITER, caller.deviceId))) return empty(429);
-
   const body = await readJson(request);
   const parsed = parseSendBody(body, now);
   if (!parsed.ok) return empty(400);
@@ -289,7 +286,10 @@ async function getInbox(env: Env, caller: Caller, now: number): Promise<Response
 async function postInboxAck(request: Request, env: Env, caller: Caller): Promise<Response> {
   const body = await readJson(request);
   const ids = (body as { ids?: unknown } | undefined)?.ids;
-  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200) return empty(400);
+  // D1 binds at most 100 parameters per statement, and `ackInbox` uses one per id plus the device.
+  // Five buddies × five prayers is 25, so this is unreachable — but a limit above what the database
+  // will accept is a limit that fails as an error rather than as a refusal.
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 99) return empty(400);
   if (!ids.every((id) => isId(id))) return empty(400);
 
   const removed = await ackInbox(env.DB, caller.deviceId, ids as string[]);
@@ -312,6 +312,12 @@ export async function route(request: Request, env: Env, now: number): Promise<Re
 
   const caller = await authenticate(env.DB, request);
   if (!caller) return empty(401);
+
+  // One burst limit covering every authenticated route, rather than four of them remembering to
+  // ask. D175 says "on every route" and it meant it: `/inbox` was pollable without limit (and each
+  // call writes a `last_seen`), and `DELETE /pair/:id` fires a push at the other phone every time.
+  // The tighter per-endpoint quotas below still apply on top of this.
+  if (!(await burstOk(env.BURST_LIMITER, caller.deviceId))) return empty(429);
 
   if (path === '/device/token' && method === 'PUT') return putDeviceToken(request, env, caller, now);
   if (path === '/device' && method === 'DELETE') return deleteDeviceRoute(env, caller);

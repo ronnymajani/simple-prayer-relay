@@ -24,7 +24,6 @@ interface ExpoMessage {
   sound?: null;
   priority?: 'normal' | 'high';
   channelId?: string;
-  categoryId?: string;
   ttl?: number;
   /**
    * iOS: deliver to the app without showing anything. The whole silent path depends on it.
@@ -45,9 +44,6 @@ interface ExpoTicket {
 
 /** The app's Android channel for buddy marks — created on the phone, named here only to target it. */
 const BUDDY_CHANNEL = 'buddies';
-/** Matches the notification category the app registers, which carries the "Prayed" button. */
-const BUDDY_CATEGORY = 'buddy';
-
 /**
  * Six hours. A push that has not been delivered by then has been overtaken: the app pulls the inbox
  * whenever it is opened, so the flag arrives that way instead — and a notification surfacing much
@@ -138,12 +134,12 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
           ? {
               title: send.title,
               body: send.body,
-              // Silent in the tray but visible on the screen: no sound, no vibration, and the
-              // category that carries the app's own "Prayed" button.
+              // Silent in the tray but visible on the screen: no sound and no vibration. No
+              // category either — the app carries no action button on these (see its buddyPush.ts
+              // for the three things that would have to be true first).
               sound: null,
               priority: 'normal',
               channelId: BUDDY_CHANNEL,
-              categoryId: BUDDY_CATEGORY,
             }
           : { contentAvailable: true, priority: 'normal' }),
       });
