@@ -292,7 +292,11 @@ export async function sweep(db: D1Database, now: number): Promise<void> {
   ]);
 }
 
-/** Tokens the push service has told us are dead, and the pairs that pointed at them. */
+/**
+ * Forget a push token the push service has told us is dead. The pairs stay — the phone may well
+ * come back with a new token, and the flags waiting for it are still theirs. The 90-day idle sweep
+ * is what eventually retires a device that never does.
+ */
 export async function forgetPushToken(db: D1Database, deviceId: string): Promise<void> {
   await db.prepare('UPDATE devices SET push_token = NULL WHERE device_id = ?').bind(deviceId).run();
 }

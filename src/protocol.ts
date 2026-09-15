@@ -1,6 +1,6 @@
 // The wire contract between the app and the relay.
 //
-// This file is duplicated, deliberately, in the app repo at `src/services/buddyProtocol.ts`. It is
+// This file is duplicated, deliberately, in the app repo at the top of `src/domain/buddies.ts`. It is
 // twenty lines that change about once a year, and sharing them through a published package would
 // tie a store release to an npm version for no benefit. If you change anything here, change it
 // there in the same week — and remember the old app version is still installed on phones, so add
