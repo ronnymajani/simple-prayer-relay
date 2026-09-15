@@ -164,6 +164,22 @@ export async function partnerIn(
   return row.device_a === deviceId ? row.device_b : row.device_a;
 }
 
+/**
+ * Every pair this device is in. The caller's own rows and nothing else — the other side's device id
+ * and token never appear, so this says "you have three links" and not who they are with.
+ *
+ * It exists because a push cannot be relied on to tell a phone it has been paired with. The inviter
+ * is usually staring at the invite code when somebody redeems it, and "nothing happened" is what
+ * they would otherwise see until their new buddy next prayed.
+ */
+export async function listPairs(db: D1Database, deviceId: string): Promise<string[]> {
+  const result = await db
+    .prepare('SELECT pair_id FROM pairs WHERE device_a = ?1 OR device_b = ?1 ORDER BY last_used')
+    .bind(deviceId)
+    .all<{ pair_id: string }>();
+  return (result.results ?? []).map((row) => row.pair_id);
+}
+
 export async function touchPair(db: D1Database, pairId: string, now: number): Promise<void> {
   await db.prepare('UPDATE pairs SET last_used = ? WHERE pair_id = ?').bind(now, pairId).run();
 }

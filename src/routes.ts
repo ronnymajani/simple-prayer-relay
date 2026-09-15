@@ -22,6 +22,7 @@ import {
   deletePair,
   findPairBetween,
   listInbox,
+  listPairs,
   partnerIn,
   putInbox,
   setPushToken,
@@ -261,6 +262,15 @@ async function postSend(request: Request, env: Env, caller: Caller, now: number)
   return empty(202);
 }
 
+/**
+ * The caller's own links. Nothing about who they are with — just how many there are and their ids,
+ * so a phone can tell that an invite was taken, and that a link it still lists has ended.
+ */
+async function getPairs(env: Env, caller: Caller, now: number): Promise<Response> {
+  await touchDevice(env.DB, caller.deviceId, now);
+  return json({ pairs: await listPairs(env.DB, caller.deviceId) });
+}
+
 async function getInbox(env: Env, caller: Caller, now: number): Promise<Response> {
   await touchDevice(env.DB, caller.deviceId, now);
   const rows = await listInbox(env.DB, caller.deviceId, now);
@@ -308,6 +318,7 @@ export async function route(request: Request, env: Env, now: number): Promise<Re
   if (path === '/invite' && method === 'POST') return postInvite(env, caller, now);
   if (path === '/pair' && method === 'POST') return postPair(request, env, caller, now);
   if (path === '/send' && method === 'POST') return postSend(request, env, caller, now);
+  if (path === '/pairs' && method === 'GET') return getPairs(env, caller, now);
   if (path === '/inbox' && method === 'GET') return getInbox(env, caller, now);
   if (path === '/inbox/ack' && method === 'POST') return postInboxAck(request, env, caller);
 

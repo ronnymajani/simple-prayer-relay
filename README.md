@@ -43,8 +43,10 @@ language they read, or anything about any prayer older than yesterday.
   keeping a row per push — "this device was told something at this time" — which is exactly the log
   this service promises not to keep.
 - **No history.** The app shows you today and nothing else, so there is nothing older to store.
-- **No admin endpoint, no list endpoint, no search.** There is no way to ask this service who is
-  paired with whom, including for us.
+- **No admin endpoint and no search.** There is no way to ask this service who is paired with whom,
+  including for us. The one listing endpoint, `GET /pairs`, returns only the caller's own link ids —
+  never the other side's identifier — and exists so a phone can tell that its invite was taken and
+  that a link it still shows has ended.
 
 ## What crosses the wire
 
@@ -91,7 +93,7 @@ Nothing else in the app touches the network, so nothing else is affected.
 
 ```sh
 bun install
-bun run test         # 52 tests against the real schema, no network
+bun run test         # 56 tests against the real schema, no network
 bun run typecheck
 
 cp .dev.vars.example .dev.vars   # then fill it in

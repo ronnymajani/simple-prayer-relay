@@ -467,3 +467,42 @@ describe('the shape of every response', () => {
     }
   });
 });
+
+describe('knowing you have been paired', () => {
+  it('lists a device own pairs, and nothing about who they are with', async () => {
+    const { a, pairId } = await newPair();
+
+    const body = await json<{ pairs: string[] }>(await call('/pairs', { as: a }));
+    expect(body.pairs).toEqual([pairId]);
+    // The partner's device id is not in the answer anywhere.
+    expect(JSON.stringify(body)).not.toContain('device');
+  });
+
+  it('is how an inviter finds out their code was taken', async () => {
+    const inviter = await newDevice();
+    const acceptor = await newDevice();
+
+    expect((await json<{ pairs: string[] }>(await call('/pairs', { as: inviter }))).pairs).toEqual([]);
+
+    const { code } = await json<{ code: string }>(
+      await call('/invite', { method: 'POST', as: inviter }),
+    );
+    await call('/pair', { method: 'POST', as: acceptor, body: JSON.stringify({ code }) });
+
+    const after = await json<{ pairs: string[] }>(await call('/pairs', { as: inviter }));
+    expect(after.pairs).toHaveLength(1);
+  });
+
+  it('stops listing a link the other side ended', async () => {
+    const { a, b, pairId } = await newPair();
+    await call(`/pair/${pairId}`, { method: 'DELETE', as: b });
+
+    expect((await json<{ pairs: string[] }>(await call('/pairs', { as: a }))).pairs).toEqual([]);
+  });
+
+  it('shows a stranger none of them', async () => {
+    await newPair();
+    const stranger = await newDevice();
+    expect((await json<{ pairs: string[] }>(await call('/pairs', { as: stranger }))).pairs).toEqual([]);
+  });
+});
