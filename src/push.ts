@@ -26,8 +26,14 @@ interface ExpoMessage {
   channelId?: string;
   categoryId?: string;
   ttl?: number;
-  /** iOS: deliver to the app without showing anything. The whole silent path depends on it. */
-  _contentAvailable?: boolean;
+  /**
+   * iOS: deliver to the app without showing anything. The whole silent path depends on it.
+   *
+   * `contentAvailable`, not the older `_contentAvailable` — Expo still accepts the underscored
+   * name for backwards compatibility but documents it as deprecated, and the unprefixed one wins
+   * when both are present.
+   */
+  contentAvailable?: boolean;
 }
 
 interface ExpoTicket {
@@ -139,7 +145,7 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
               channelId: BUDDY_CHANNEL,
               categoryId: BUDDY_CATEGORY,
             }
-          : { _contentAvailable: true, priority: 'normal' }),
+          : { contentAvailable: true, priority: 'normal' }),
       });
     })(),
   );
@@ -158,7 +164,7 @@ export async function notifyPairEvent(
       await deliver(env, toDeviceId, {
         to: token,
         data: payload,
-        _contentAvailable: true,
+        contentAvailable: true,
         priority: 'normal',
         ttl: PUSH_TTL_SECONDS,
       });

@@ -180,6 +180,10 @@ export async function deletePair(db: D1Database, pairId: string): Promise<void> 
  * Put one flag in a device's inbox. The UNIQUE key on (to_device, pair, day, prayer) means a
  * retried or replayed send lands on the row that is already there: the newest state wins and the
  * row count cannot grow. That is the whole of the replay defence — there is no ledger to keep.
+ *
+ * The conflict target is that UNIQUE constraint, so SQLite resolves it through its index rather
+ * than by scanning. An upsert whose conflict target is *not* backed by an index reads the whole
+ * table on every write, which on D1 shows up as a surprising `rows_read` bill.
  */
 export async function putInbox(
   db: D1Database,
