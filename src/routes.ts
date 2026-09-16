@@ -33,8 +33,8 @@ import {
 import { encryptToken, ipKey, sha256Hex } from './crypto';
 import { authenticate, type Caller } from './auth';
 import { formatCode, inviteCode, normalizeCode, randomId, randomSecret } from './ids';
-import { isExpoPushToken, isId, parseSendBody, MAX_BODY_BYTES } from './validate';
-import { notifyMark, notifyPairEvent } from './push';
+import { isExpoPushToken, isId, isLanguage, parseSendBody, MAX_BODY_BYTES } from './validate';
+import { notifyMark, notifyPairEvent, notifyPrefs } from './push';
 
 export interface Env {
   DB: D1Database;
@@ -268,6 +268,30 @@ async function getPairs(env: Env, caller: Caller, now: number): Promise<Response
   return json({ pairs: await listPairs(env.DB, caller.deviceId) });
 }
 
+/**
+ * Tell the other phone something about *this* one that is not a prayer: the language it now reads,
+ * and whether it wants to be told at all.
+ *
+ * Nothing is stored. This forwards a data-only push and forgets it — which is the only way to do it
+ * without the relay holding a language, and §4.1 of the spec says it holds none. Delivery is
+ * therefore best effort; the durable path is that every mark carries the same two fields, so a
+ * missed push self-corrects the next time its sender prays.
+ */
+async function postPrefs(request: Request, env: Env, caller: Caller, now: number): Promise<Response> {
+  const body = await readJson(request);
+  const raw = (body as { pairId?: unknown; lang?: unknown; notify?: unknown } | undefined) ?? {};
+  if (!isId(raw.pairId) || !isLanguage(raw.lang) || typeof raw.notify !== 'boolean') {
+    return empty(400);
+  }
+
+  const partner = await partnerIn(env.DB, raw.pairId, caller.deviceId);
+  if (!partner) return empty(404);
+
+  await touchDevice(env.DB, caller.deviceId, now);
+  await notifyPrefs(env, partner, { pairId: raw.pairId, lang: raw.lang, notify: raw.notify });
+  return empty(202);
+}
+
 async function getInbox(env: Env, caller: Caller, now: number): Promise<Response> {
   await touchDevice(env.DB, caller.deviceId, now);
   const rows = await listInbox(env.DB, caller.deviceId, now);
@@ -325,6 +349,7 @@ export async function route(request: Request, env: Env, now: number): Promise<Re
   if (path === '/pair' && method === 'POST') return postPair(request, env, caller, now);
   if (path === '/send' && method === 'POST') return postSend(request, env, caller, now);
   if (path === '/pairs' && method === 'GET') return getPairs(env, caller, now);
+  if (path === '/prefs' && method === 'POST') return postPrefs(request, env, caller, now);
   if (path === '/inbox' && method === 'GET') return getInbox(env, caller, now);
   if (path === '/inbox/ack' && method === 'POST') return postInboxAck(request, env, caller);
 

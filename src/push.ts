@@ -168,6 +168,30 @@ export async function notifyPairEvent(
   );
 }
 
+/**
+ * Tell a device that its buddy now reads a different language, or has changed its mind about being
+ * notified. Always silent: this is bookkeeping between two phones, not news for a person.
+ */
+export async function notifyPrefs(
+  env: Env,
+  toDeviceId: string,
+  prefs: { pairId: string; lang: string; notify: boolean },
+): Promise<void> {
+  await attempt(
+    (async () => {
+      const token = await tokenFor(env, toDeviceId);
+      if (!token) return;
+      await deliver(env, toDeviceId, {
+        to: token,
+        data: { type: 'prefs', ...prefs } as unknown as BuddyPayload,
+        contentAvailable: true,
+        priority: 'normal',
+        ttl: PUSH_TTL_SECONDS,
+      });
+    })(),
+  );
+}
+
 // There is deliberately no receipt polling. Expo's receipts are fetched by ticket id, which would
 // mean storing a row per push — "device X was told something at time T" — which is precisely the
 // log this relay promises not to keep. The send-time ticket already reports DeviceNotRegistered for

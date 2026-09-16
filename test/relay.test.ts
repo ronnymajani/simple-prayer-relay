@@ -506,3 +506,45 @@ describe('knowing you have been paired', () => {
     expect((await json<{ pairs: string[] }>(await call('/pairs', { as: stranger }))).pairs).toEqual([]);
   });
 });
+
+describe('telling a buddy what language to use', () => {
+  it('forwards a preference change without storing anything', async () => {
+    const { a, b, pairId } = await newPair();
+    await setToken(b);
+
+    const before = await countRows('inbox');
+    const response = await call('/prefs', {
+      method: 'POST',
+      as: a,
+      body: JSON.stringify({ pairId, lang: 'ar', notify: false }),
+    });
+
+    expect(response.status).toBe(202);
+    // Forwarded and forgotten: no row, so the relay never holds a language.
+    expect(await countRows('inbox')).toBe(before);
+  });
+
+  it('refuses a pair the caller is not part of', async () => {
+    const { pairId } = await newPair();
+    const stranger = await newDevice();
+
+    const response = await call('/prefs', {
+      method: 'POST',
+      as: stranger,
+      body: JSON.stringify({ pairId, lang: 'ar', notify: true }),
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('refuses a language that is not one, and a notify flag that is not a boolean', async () => {
+    const { a, pairId } = await newPair();
+    for (const body of [
+      { pairId, lang: 'not-a-language-at-all', notify: true },
+      { pairId, lang: 'ar', notify: 'yes' },
+      { pairId: 'nope', lang: 'ar', notify: true },
+    ]) {
+      const response = await call('/prefs', { method: 'POST', as: a, body: JSON.stringify(body) });
+      expect(response.status).toBe(400);
+    }
+  });
+});

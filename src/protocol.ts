@@ -18,7 +18,18 @@ export type Prayer = (typeof PRAYERS)[number];
 export const MARK_STATES = ['prayed', 'cleared'] as const;
 export type MarkState = (typeof MARK_STATES)[number];
 
-export type PushType = 'mark' | 'paired' | 'unpaired';
+export type PushType = 'mark' | 'paired' | 'unpaired' | 'prefs';
+
+/**
+ * What one phone tells another about itself: the language to address it in, and whether it wants a
+ * notification at all. Never stored — forwarded and forgotten, because the relay holds no language.
+ */
+export interface PrefsPayload {
+  type: 'prefs';
+  pairId: string;
+  lang: string;
+  notify: boolean;
+}
 
 /** What rides in a push's data, and what `GET /inbox` returns rows of. */
 export interface MarkPayload {
@@ -41,4 +52,4 @@ export interface PairEventPayload {
   pairId: string;
 }
 
-export type BuddyPayload = MarkPayload | PairEventPayload;
+export type BuddyPayload = MarkPayload | PairEventPayload | PrefsPayload;
