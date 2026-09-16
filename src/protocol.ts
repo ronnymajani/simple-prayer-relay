@@ -55,6 +55,8 @@ export interface MarkPayload {
    * and a phone that has none for this pair simply shows the body it was sent.
    */
   bodyNamed?: string;
+  /** The same for the title — which, since the notification became one line, is the one that matters. */
+  titleNamed?: string;
 }
 
 export interface PairEventPayload {

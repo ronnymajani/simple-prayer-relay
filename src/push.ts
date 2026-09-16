@@ -129,10 +129,11 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
         state: send.state,
         lang: send.lang,
         notify: send.notify,
+        ...(send.titleNamed !== undefined ? { titleNamed: send.titleNamed } : {}),
         ...(send.bodyNamed !== undefined ? { bodyNamed: send.bodyNamed } : {}),
       };
 
-      const visible = send.state === 'prayed' && send.title !== undefined && send.body !== undefined;
+      const visible = send.state === 'prayed' && send.title !== undefined;
 
       await deliver(env, toDeviceId, {
         to: token,
@@ -141,7 +142,7 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
         ...(visible
           ? {
               title: send.title,
-              body: send.body,
+              ...(send.body !== undefined ? { body: send.body } : {}),
               // Silent in the tray but visible on the screen: no sound and no vibration. No
               // category either — the app carries no action button on these (see its buddyPush.ts
               // for the three things that would have to be true first).

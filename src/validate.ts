@@ -6,15 +6,23 @@ import { MARK_STATES, PRAYERS, type MarkState, type Prayer } from './protocol';
 /** Big enough for any legitimate call and small enough that nothing can be smuggled in a body. */
 export const MAX_BODY_BYTES = 2048;
 
-const TITLE_MAX = 40;
+const TITLE_MAX = 80;
 const BODY_MAX = 120;
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ID_PATTERN = /^[0-9a-f]{32}$/;
 const LANG_PATTERN = /^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/;
 const EXPO_TOKEN_PATTERN = /^(ExponentPushToken|ExpoPushToken)\[[^\]\s]{1,64}\]$/;
 
-/** Control characters have no business in a notification, and a URL still less. */
-const CONTROL = /[\p{Cc}\p{Cf}]/u;
+/**
+ * Control characters have no business in a notification, and a URL still less.
+ *
+ * Format characters are refused too — with exactly one exception: the four bidi isolates
+ * (U+2066–U+2069). Every interpolated value in the app is wrapped in those so that a Latin name
+ * inside an Arabic sentence, or the reverse, keeps its place; refusing them would mean the sender
+ * could not build "Leen prayed Dhuhr" with its own translation machinery. They are invisible, they
+ * cannot spoof anything, and the rest of `\p{Cf}` (joiners, marks, tags) stays refused.
+ */
+const CONTROL = /[\p{Cc}]|(?![\u2066-\u2069])\p{Cf}/u;
 const URLISH = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|app|link|me)\b)/i;
 
 export function isPrayer(value: unknown): value is Prayer {
@@ -75,6 +83,9 @@ export interface SendBody {
   notify: boolean;
   title?: string;
   body?: string;
+  /** `title` with `{}` where the receiving phone puts its own nickname for the sender. */
+  titleNamed?: string;
+  /** The same for `body`. */
   bodyNamed?: string;
 }
 
@@ -95,18 +106,22 @@ export function parseSendBody(input: unknown, now: number): Parsed<SendBody> {
   if (!isLanguage(raw.lang)) return { ok: false, reason: 'lang' };
   if (typeof raw.notify !== 'boolean') return { ok: false, reason: 'notify' };
 
-  // Title and body arrive together or not at all: one without the other is a half-built
-  // notification, and a visible push with no words is worse than a silent one.
+  // A visible notification is a title. The body is optional — one true line is the whole message
+  // ("Leen prayed Dhuhr") — but a body with no title is a notification with no first line, and
+  // a visible push with no words is worse than a silent one.
   const hasTitle = raw.title !== undefined;
   const hasBody = raw.body !== undefined;
-  if (hasTitle !== hasBody) return { ok: false, reason: 'title and body travel together' };
+  if (hasBody && !hasTitle) return { ok: false, reason: 'body without title' };
   if (hasTitle && !isDisplayText(raw.title, TITLE_MAX)) return { ok: false, reason: 'title' };
   if (hasBody && !isDisplayText(raw.body, BODY_MAX)) return { ok: false, reason: 'body' };
 
-  // The named variant is an alternative body, so it lives under the same ceiling and the same
-  // no-control-characters, no-URL rule. It is only ever meaningful alongside one: it is what the
-  // receiving phone shows *instead of* `body` when it knows a nickname for this pair, and a
+  // The named variants are alternatives, so each lives under the same ceiling and the same rule
+  // as the line it replaces, and each is only meaningful alongside that line: it is what the
+  // receiving phone shows *instead of* it when it knows a nickname for this pair, and a
   // notification with no fallback is not one this relay will carry.
+  const hasTitleNamed = raw.titleNamed !== undefined;
+  if (hasTitleNamed && !hasTitle) return { ok: false, reason: 'titleNamed without title' };
+  if (hasTitleNamed && !isDisplayText(raw.titleNamed, TITLE_MAX)) return { ok: false, reason: 'titleNamed' };
   const hasNamed = raw.bodyNamed !== undefined;
   if (hasNamed && !hasBody) return { ok: false, reason: 'bodyNamed without body' };
   if (hasNamed && !isDisplayText(raw.bodyNamed, BODY_MAX)) return { ok: false, reason: 'bodyNamed' };
@@ -120,7 +135,9 @@ export function parseSendBody(input: unknown, now: number): Parsed<SendBody> {
       state: raw.state,
       lang: raw.lang,
       notify: raw.notify,
-      ...(hasTitle ? { title: raw.title as string, body: raw.body as string } : {}),
+      ...(hasTitle ? { title: raw.title as string } : {}),
+      ...(hasBody ? { body: raw.body as string } : {}),
+      ...(hasTitleNamed ? { titleNamed: raw.titleNamed as string } : {}),
       ...(hasNamed ? { bodyNamed: raw.bodyNamed as string } : {}),
     },
   };

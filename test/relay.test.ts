@@ -298,12 +298,15 @@ describe('what a caller may say', () => {
     ['a day far from now', { day: '2030-01-01' }],
     ['a language that is not one', { lang: 'not-a-language-at-all' }],
     ['a notify flag that is not a boolean', { notify: 'yes' }],
-    ['a title without a body', { title: 'Your buddy prayed' }],
-    ['a title that is too long', { title: 'x'.repeat(41), body: 'ok' }],
+    ['a body without a title', { body: 'Your buddy prayed' }],
+    ['a named title with nothing to fall back to', { titleNamed: '{} prayed Dhuhr' }],
+    ['a title that is too long', { title: 'x'.repeat(81) }],
+    ['a zero-width joiner in the title', { title: 'Your buddy\u200dprayed' }],
+    ['a tag character in the title', { title: 'Your buddy prayed\u{E0041}' }],
     ['a body that is too long', { title: 'ok', body: 'x'.repeat(121) }],
     ['a link in the body', { title: 'ok', body: 'see https://example.com now' }],
     ['a bare domain in the body', { title: 'ok', body: 'go to example.com' }],
-    ['a named body with nothing to fall back to', { bodyNamed: '{} prayed' }],
+    ['a named body with nothing to fall back to', { title: 'ok', bodyNamed: '{} prayed' }],
     ['a named body that is too long', { title: 'ok', body: 'ok', bodyNamed: 'x'.repeat(121) }],
     ['a link in the named body', { title: 'ok', body: 'ok', bodyNamed: '{} see https://example.com' }],
   ];
@@ -333,24 +336,36 @@ describe('what a caller may say', () => {
     }
   });
 
-  it('carries a named body alongside the plain one, and neither reaches the database', async () => {
-    // The named body is the sentence with a hole in it; the hole is filled on the receiving phone,
-    // which is the only place a nickname exists. Like the title and the body, it is passed to the
-    // push service and never written down — an inbox row holds a prayer and a state, nothing said.
+  it('carries a one-line notification with a named variant, and neither reaches the database', async () => {
+    // The named title is the sentence with a hole in it; the hole is filled on the receiving phone,
+    // which is the only place a nickname exists. Like the title, it is passed to the push service
+    // and never written down — an inbox row holds a prayer and a state, nothing said. And the
+    // bidi isolates around the interpolated values are allowed through: they are how a Latin name
+    // keeps its place inside an Arabic sentence.
     const { a, b, pairId } = await newPair();
     await setToken(b);
 
     const response = await call('/send', {
       method: 'POST',
       as: a,
-      body: markBody(pairId, { title: 'Maghrib', body: 'Your buddy has prayed.', bodyNamed: '{} has prayed.' }),
+      body: markBody(pairId, {
+        title: 'Your buddy prayed \u2068Maghrib\u2069',
+        titleNamed: '\u2068{}\u2069 prayed \u2068Maghrib\u2069',
+      }),
     });
     expect(response.status).toBe(202);
 
     const held = await env.DB.prepare('SELECT * FROM inbox').all();
     const asText = JSON.stringify(held.results);
     expect(asText).not.toContain('{}');
-    expect(asText).not.toContain('has prayed');
+    expect(asText).not.toContain('Your buddy');
+  });
+
+  it('accepts a title with no body: one true line is the whole notification', async () => {
+    const { a, b, pairId } = await newPair();
+    await setToken(b);
+    const response = await call('/send', { method: 'POST', as: a, body: markBody(pairId, { title: 'Your buddy prayed Dhuhr' }) });
+    expect(response.status).toBe(202);
   });
 
   it('accepts a mark with no text at all — that is how a muted buddy is served', async () => {
@@ -569,5 +584,43 @@ describe('telling a buddy what language to use', () => {
       const response = await call('/prefs', { method: 'POST', as: a, body: JSON.stringify(body) });
       expect(response.status).toBe(400);
     }
+  });
+});
+
+describe('withdrawing an invite', () => {
+  it('makes the code stop working, for its maker only', async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const stranger = await newDevice();
+    const { code } = await json<{ code: string }>(await call('/invite', { method: 'POST', as: a }));
+
+    // Somebody else's DELETE is a no-op that looks identical.
+    expect((await call(`/invite/${code}`, { method: 'DELETE', as: stranger })).status).toBe(204);
+    const still = await call('/pair', { method: 'POST', as: b, body: JSON.stringify({ code }) });
+    expect(still.status).toBe(201);
+  });
+
+  it('is honoured: a withdrawn code cannot pair anybody', async () => {
+    const a = await newDevice();
+    const b = await newDevice();
+    const { code } = await json<{ code: string }>(await call('/invite', { method: 'POST', as: a }));
+
+    expect((await call(`/invite/${code}`, { method: 'DELETE', as: a })).status).toBe(204);
+    const after = await call('/pair', { method: 'POST', as: b, body: JSON.stringify({ code }) });
+    expect(after.status).toBe(404);
+    expect(await countRows('invites')).toBe(0);
+  });
+});
+
+describe('the same flag twice', () => {
+  it('is written once and reported as unchanged the second time', async () => {
+    // The app and the widget can both send a mark; the relay must not ring the other phone
+    // twice for it. `putInbox` says whether anything changed, and the route pushes only then.
+    const { putInbox } = await import('../src/db');
+    const row = { id: 'a'.repeat(32), toDevice: 'b'.repeat(32), pairId: 'c'.repeat(32), day: today(), prayer: 'dhuhr' as const, state: 'prayed' as const };
+    expect(await putInbox(env.DB, row, Date.now() + 1000)).toBe(true);
+    expect(await putInbox(env.DB, { ...row, id: 'd'.repeat(32) }, Date.now() + 1000)).toBe(false);
+    expect(await putInbox(env.DB, { ...row, id: 'e'.repeat(32), state: 'cleared' }, Date.now() + 1000)).toBe(true);
+    expect(await countRows('inbox')).toBe(1);
   });
 });

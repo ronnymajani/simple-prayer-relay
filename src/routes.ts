@@ -29,6 +29,7 @@ import {
   takeInvite,
   touchDevice,
   touchPair,
+  deleteInvite,
 } from './db';
 import { encryptToken, ipKey, sha256Hex } from './crypto';
 import { authenticate, type Caller } from './auth';
@@ -239,7 +240,7 @@ async function postSend(request: Request, env: Env, caller: Caller, now: number)
     return empty(429);
   }
 
-  await putInbox(
+  const changed = await putInbox(
     env.DB,
     {
       id: randomId(),
@@ -254,7 +255,9 @@ async function postSend(request: Request, env: Env, caller: Caller, now: number)
   await touchPair(env.DB, send.pairId, now);
   await touchDevice(env.DB, caller.deviceId, now);
 
-  await notifyMark(env, partner, send);
+  // Only a flag that changed something is worth a doorbell. The same flag arriving twice — the
+  // widget sent it and then the app did, or a retry — is accepted and stays silent.
+  if (changed) await notifyMark(env, partner, send);
 
   return empty(202);
 }
@@ -355,6 +358,14 @@ export async function route(request: Request, env: Env, now: number): Promise<Re
 
   const pairId = /^\/pair\/([0-9a-f]{32})$/.exec(path)?.[1];
   if (pairId && method === 'DELETE') return deletePairRoute(env, caller, pairId);
+
+  // Withdrawing an invite. 204 whatever the state of the code — it is the caller's to withdraw
+  // or it does not exist for them, and either way there is nothing left to say about it.
+  const inviteCode = /^\/invite\/([0-9A-Za-z]{8})$/.exec(path)?.[1];
+  if (inviteCode && method === 'DELETE') {
+    await deleteInvite(env.DB, normalizeCode(inviteCode) ?? '', caller.deviceId);
+    return empty(204);
+  }
 
   return empty(404);
 }

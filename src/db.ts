@@ -96,6 +96,14 @@ export async function createInvite(
  * Redeem a code: read it and delete it in one statement, so two people racing the same code cannot
  * both win it. An expired code is treated exactly as a wrong one.
  */
+/**
+ * Withdraw an invite. Scoped to its maker in SQL, so the answer is the same whether the code was
+ * never theirs, has already been taken, or has just been deleted: nothing to say about it.
+ */
+export async function deleteInvite(db: D1Database, code: string, deviceId: string): Promise<void> {
+  await db.prepare('DELETE FROM invites WHERE code = ? AND device_id = ?').bind(code, deviceId).run();
+}
+
 export async function takeInvite(db: D1Database, code: string, now: number): Promise<string | null> {
   const row = await db
     .prepare('DELETE FROM invites WHERE code = ? AND expires_at > ? RETURNING device_id')
@@ -205,16 +213,21 @@ export async function putInbox(
   db: D1Database,
   row: { id: string; toDevice: string; pairId: string; day: string; prayer: Prayer; state: MarkState },
   expiresAt: number,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  // `WHERE` on the conflict branch: a resend that changes nothing writes nothing, and the caller
+  // learns that, so it can leave the other phone's notification tray alone. Two processes can now
+  // send the same flag — the app and the widget — and the second one must not be a second buzz.
+  const result = await db
     .prepare(
       `INSERT INTO inbox (id, to_device, pair_id, day, prayer, state, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (to_device, pair_id, day, prayer)
-       DO UPDATE SET state = excluded.state, expires_at = excluded.expires_at`,
+       DO UPDATE SET state = excluded.state, expires_at = excluded.expires_at
+       WHERE inbox.state <> excluded.state`,
     )
     .bind(row.id, row.toDevice, row.pairId, row.day, row.prayer, row.state, expiresAt)
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 export async function listInbox(

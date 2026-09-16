@@ -63,11 +63,18 @@ The notification text is written by the **sending** phone, in the receiving phon
 passed through. The relay holds no copy and no translations; it checks only that the text is short
 and contains no link, so that one phone cannot use another's notification tray as a billboard.
 
-A sender may include a second version of that sentence with the two characters `{}` where a name
-would go — "{} has prayed." The relay passes it through like the rest. It cannot fill the hole,
-because a nickname exists only on the phone that chose it: the receiving phone substitutes its own
-nickname as the notification is delivered, and shows the plain sentence if it has none. So a
-notification can read "Amina has prayed" without the name ever having been sent anywhere.
+A notification is one line — "Your buddy prayed Dhuhr". A sender may include a second version of
+that line with the two characters `{}` where a name would go — "{} prayed Dhuhr". The relay passes
+it through like the rest. It cannot fill the hole, because a nickname exists only on the phone that
+chose it: the receiving phone substitutes its own nickname as the notification is delivered, and
+shows the plain line if it has none. So a notification can read "Amina prayed Dhuhr" without the
+name ever having been sent anywhere. The four Unicode bidi-isolate characters are the one kind of
+format character the relay lets through, so that a name in one script can sit inside a sentence
+in another.
+
+The same flag sent twice — by the app and by a home-screen widget, say — is stored once and rings
+the other phone once. An invite can be withdrawn by the phone that made it (`DELETE /invite/:code`),
+after which the code no longer pairs anybody.
 
 ## Security
 
