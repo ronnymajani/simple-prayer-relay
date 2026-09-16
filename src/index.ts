@@ -10,6 +10,12 @@ import { route, type Env } from './routes';
 import { sweep } from './db';
 import { sentryOptions } from './sentry';
 
+/**
+ * The cron monitor's slug. Sentry creates the monitor itself on the first check-in (see `scheduled`
+ * below), so this is the only place it is named.
+ */
+const SWEEP_MONITOR = 'relay-sweep';
+
 const handler: ExportedHandler<Env> = {
   async fetch(request, env): Promise<Response> {
     // Cloudflare terminates TLS before us, so this only ever fires if the Worker is reached some
@@ -31,8 +37,26 @@ const handler: ExportedHandler<Env> = {
   async scheduled(_event, env, ctx): Promise<void> {
     // A check-in each hour is how the owner learns the sweep has stopped running — which would mean
     // rows outliving their expiry, the one failure here that matters to anybody's privacy.
+    //
+    // The monitor config is passed so Sentry **creates the monitor from the first check-in**. There
+    // is nothing to set up by hand, and — the actual reason — the schedule lives here, four lines
+    // from the `triggers.crons` entry it has to match, instead of in a dashboard where the two
+    // would silently drift the first time the cron changed.
     const checkInId = env.SENTRY_DSN
-      ? Sentry.captureCheckIn({ monitorSlug: 'relay-sweep', status: 'in_progress' })
+      ? Sentry.captureCheckIn(
+          { monitorSlug: SWEEP_MONITOR, status: 'in_progress' },
+          {
+            // Must match `triggers.crons` in wrangler.jsonc.
+            schedule: { type: 'crontab', value: '0 * * * *' },
+            // UTC because that is what Cloudflare's scheduler runs on; a local timezone here would
+            // make the monitor miss by the offset twice a year.
+            timezone: 'UTC',
+            // The sweep is a handful of DELETEs. Five minutes late means something is wrong, and
+            // two minutes of runtime means something is very wrong.
+            checkinMargin: 5,
+            maxRuntime: 2,
+          },
+        )
       : undefined;
 
     ctx.waitUntil(
@@ -40,11 +64,11 @@ const handler: ExportedHandler<Env> = {
         try {
           await sweep(env.DB, Date.now());
           if (checkInId) {
-            Sentry.captureCheckIn({ checkInId, monitorSlug: 'relay-sweep', status: 'ok' });
+            Sentry.captureCheckIn({ checkInId, monitorSlug: SWEEP_MONITOR, status: 'ok' });
           }
         } catch (error) {
           if (checkInId) {
-            Sentry.captureCheckIn({ checkInId, monitorSlug: 'relay-sweep', status: 'error' });
+            Sentry.captureCheckIn({ checkInId, monitorSlug: SWEEP_MONITOR, status: 'error' });
           }
           Sentry.captureException(error);
         }
