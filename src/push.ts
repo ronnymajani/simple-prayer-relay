@@ -33,6 +33,13 @@ interface ExpoMessage {
    * when both are present.
    */
   contentAvailable?: boolean;
+  /**
+   * iOS: `aps.mutable-content = 1`, which lets the app's notification service extension rewrite the
+   * body before it is shown. That is how a buddy's nickname — which exists only on the receiving
+   * phone — reaches a notification the relay composed no part of. Harmless where no extension is
+   * installed: the body arrives exactly as sent.
+   */
+  mutableContent?: boolean;
 }
 
 interface ExpoTicket {
@@ -122,6 +129,7 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
         state: send.state,
         lang: send.lang,
         notify: send.notify,
+        ...(send.bodyNamed !== undefined ? { bodyNamed: send.bodyNamed } : {}),
       };
 
       const visible = send.state === 'prayed' && send.title !== undefined && send.body !== undefined;
@@ -140,6 +148,10 @@ export async function notifyMark(env: Env, toDeviceId: string, send: SendBody): 
               sound: null,
               priority: 'normal',
               channelId: BUDDY_CHANNEL,
+              // Always set, not only when `bodyNamed` rides along: the extension has to run to
+              // decide there is nothing to do, and a phone that has a nickname for a pair whose
+              // sender is on an older app version should still fall through cleanly.
+              mutableContent: true,
             }
           : { contentAvailable: true, priority: 'normal' }),
       });

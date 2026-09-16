@@ -63,6 +63,12 @@ The notification text is written by the **sending** phone, in the receiving phon
 passed through. The relay holds no copy and no translations; it checks only that the text is short
 and contains no link, so that one phone cannot use another's notification tray as a billboard.
 
+A sender may include a second version of that sentence with the two characters `{}` where a name
+would go — "{} has prayed." The relay passes it through like the rest. It cannot fill the hole,
+because a nickname exists only on the phone that chose it: the receiving phone substitutes its own
+nickname as the notification is delivered, and shows the plain sentence if it has none. So a
+notification can read "Amina has prayed" without the name ever having been sent anywhere.
+
 ## Security
 
 - Every endpoint is scoped to the caller in SQL. "Not yours" and "does not exist" are both an empty

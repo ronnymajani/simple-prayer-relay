@@ -303,6 +303,9 @@ describe('what a caller may say', () => {
     ['a body that is too long', { title: 'ok', body: 'x'.repeat(121) }],
     ['a link in the body', { title: 'ok', body: 'see https://example.com now' }],
     ['a bare domain in the body', { title: 'ok', body: 'go to example.com' }],
+    ['a named body with nothing to fall back to', { bodyNamed: '{} prayed' }],
+    ['a named body that is too long', { title: 'ok', body: 'ok', bodyNamed: 'x'.repeat(121) }],
+    ['a link in the named body', { title: 'ok', body: 'ok', bodyNamed: '{} see https://example.com' }],
   ];
 
   it.each(bad)('refuses %s', async (_label, overrides) => {
@@ -328,6 +331,26 @@ describe('what a caller may say', () => {
       const response = await call('/inbox/ack', { method: 'POST', as: device, body: JSON.stringify({ ids }) });
       expect(response.status).toBe(400);
     }
+  });
+
+  it('carries a named body alongside the plain one, and neither reaches the database', async () => {
+    // The named body is the sentence with a hole in it; the hole is filled on the receiving phone,
+    // which is the only place a nickname exists. Like the title and the body, it is passed to the
+    // push service and never written down — an inbox row holds a prayer and a state, nothing said.
+    const { a, b, pairId } = await newPair();
+    await setToken(b);
+
+    const response = await call('/send', {
+      method: 'POST',
+      as: a,
+      body: markBody(pairId, { title: 'Maghrib', body: 'Your buddy has prayed.', bodyNamed: '{} has prayed.' }),
+    });
+    expect(response.status).toBe(202);
+
+    const held = await env.DB.prepare('SELECT * FROM inbox').all();
+    const asText = JSON.stringify(held.results);
+    expect(asText).not.toContain('{}');
+    expect(asText).not.toContain('has prayed');
   });
 
   it('accepts a mark with no text at all — that is how a muted buddy is served', async () => {

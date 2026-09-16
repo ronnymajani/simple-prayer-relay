@@ -45,6 +45,16 @@ export interface MarkPayload {
    */
   lang: string;
   notify: boolean;
+  /**
+   * The same sentence as the push's visible body, with the two characters `{}` standing where a
+   * name would go — "{} has prayed.", already written in the receiver's language by the sender.
+   *
+   * The receiver's phone is the only place a nickname exists, so it is the only place that hole can
+   * be filled: iOS does it in a notification service extension, Android in its messaging service,
+   * both reading a map the app wrote to its own on-device storage. The relay never sees a nickname,
+   * and a phone that has none for this pair simply shows the body it was sent.
+   */
+  bodyNamed?: string;
 }
 
 export interface PairEventPayload {

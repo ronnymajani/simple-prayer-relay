@@ -75,6 +75,7 @@ export interface SendBody {
   notify: boolean;
   title?: string;
   body?: string;
+  bodyNamed?: string;
 }
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -102,6 +103,14 @@ export function parseSendBody(input: unknown, now: number): Parsed<SendBody> {
   if (hasTitle && !isDisplayText(raw.title, TITLE_MAX)) return { ok: false, reason: 'title' };
   if (hasBody && !isDisplayText(raw.body, BODY_MAX)) return { ok: false, reason: 'body' };
 
+  // The named variant is an alternative body, so it lives under the same ceiling and the same
+  // no-control-characters, no-URL rule. It is only ever meaningful alongside one: it is what the
+  // receiving phone shows *instead of* `body` when it knows a nickname for this pair, and a
+  // notification with no fallback is not one this relay will carry.
+  const hasNamed = raw.bodyNamed !== undefined;
+  if (hasNamed && !hasBody) return { ok: false, reason: 'bodyNamed without body' };
+  if (hasNamed && !isDisplayText(raw.bodyNamed, BODY_MAX)) return { ok: false, reason: 'bodyNamed' };
+
   return {
     ok: true,
     value: {
@@ -112,6 +121,7 @@ export function parseSendBody(input: unknown, now: number): Parsed<SendBody> {
       lang: raw.lang,
       notify: raw.notify,
       ...(hasTitle ? { title: raw.title as string, body: raw.body as string } : {}),
+      ...(hasNamed ? { bodyNamed: raw.bodyNamed as string } : {}),
     },
   };
 }
